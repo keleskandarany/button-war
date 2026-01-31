@@ -596,13 +596,17 @@
       }
 
       async function createGame() {
-        const code = generateCode();
-        const newGameRef = ref(db, `games/${code}`);
-        await runTransaction(newGameRef, (game) => {
-          if (game) return game;
-          return { score: 0 };
-        });
-        return code;
+        for (let attempt = 0; attempt < 5; attempt += 1) {
+          const code = generateCode();
+          const newGameRef = ref(db, `games/${code}`);
+          const existing = await get(newGameRef);
+          if (existing.exists()) {
+            continue;
+          }
+          await set(newGameRef, { score: 0 });
+          return code;
+        }
+        throw new Error("Unable to allocate a unique game code.");
       }
 
       roomInput.addEventListener("input", (event) => {
