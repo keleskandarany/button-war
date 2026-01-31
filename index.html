@@ -456,12 +456,14 @@
         team = "red";
         teamModal.style.display = "none";
         applyTeamStyle();
+        teamButton.disabled = gameOver;
       });
 
       joinBlue.addEventListener("click", () => {
         team = "blue";
         teamModal.style.display = "none";
         applyTeamStyle();
+        teamButton.disabled = gameOver;
       });
 
       teamButton.addEventListener("click", () => {
