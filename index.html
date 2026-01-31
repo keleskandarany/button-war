@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Button War - Tug of War</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0b0f1a;
+        --panel: #121829;
+        --text: #e8eefc;
+        --muted: #9aa5c6;
+        --red: #ff3b5c;
+        --blue: #2b7bff;
+        --glow-red: rgba(255, 59, 92, 0.65);
+        --glow-blue: rgba(43, 123, 255, 0.65);
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+      }
+
+      body {
+        min-height: 100vh;
+        background: radial-gradient(circle at top, #1a2238 0%, #0b0f1a 55%, #070a12 100%);
+        color: var(--text);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 32px;
+      }
+
+      .app {
+        width: min(1200px, 100%);
+        display: flex;
+        flex-direction: column;
+        gap: 32px;
+        align-items: center;
+      }
+
+      header {
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      header h1 {
+        font-size: clamp(2rem, 3vw + 1rem, 3.5rem);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      header p {
+        color: var(--muted);
+        font-size: 1rem;
+      }
+
+      .progress-wrap {
+        width: 100%;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(0, 0, 0, 0.2));
+        border-radius: 32px;
+        padding: 18px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+      }
+
+      .progress-bar {
+        position: relative;
+        height: 64px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, rgba(43, 123, 255, 0.25), rgba(255, 59, 92, 0.25));
+        overflow: hidden;
+      }
+
+      .progress-glow {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(90deg, rgba(43, 123, 255, 0.45), rgba(255, 59, 92, 0.45));
+        opacity: 0.8;
+        filter: blur(8px);
+      }
+
+      .progress-track {
+        position: absolute;
+        inset: 6px;
+        border-radius: 999px;
+        background: rgba(10, 15, 26, 0.85);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+      }
+
+      .progress-center {
+        position: absolute;
+        top: 8px;
+        bottom: 8px;
+        left: 50%;
+        width: 4px;
+        background: rgba(255, 255, 255, 0.35);
+        transform: translateX(-50%);
+        border-radius: 999px;
+        box-shadow: 0 0 12px rgba(255, 255, 255, 0.5);
+      }
+
+      .progress-indicator {
+        position: absolute;
+        top: 6px;
+        bottom: 6px;
+        width: 22px;
+        background: #fff;
+        border-radius: 999px;
+        box-shadow: 0 0 20px rgba(255, 255, 255, 0.8);
+        transform: translateX(-50%);
+        transition: left 0.2s ease-out;
+      }
+
+      .progress-sweep {
+        position: absolute;
+        inset: 6px;
+        border-radius: 999px;
+        background: linear-gradient(120deg, transparent 0%, rgba(255, 255, 255, 0.08) 50%, transparent 100%);
+        animation: sweep 2.6s linear infinite;
+      }
+
+      @keyframes sweep {
+        0% {
+          transform: translateX(-100%);
+        }
+        100% {
+          transform: translateX(100%);
+        }
+      }
+
+      .score-line {
+        display: flex;
+        justify-content: space-between;
+        width: 100%;
+        margin-top: 10px;
+        font-size: 0.9rem;
+        color: var(--muted);
+      }
+
+      .score-line span strong {
+        color: var(--text);
+      }
+
+      .score-value {
+        font-size: 1.4rem;
+        letter-spacing: 0.08em;
+      }
+
+      .controls {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        align-items: center;
+      }
+
+      .team-button {
+        width: min(420px, 90vw);
+        aspect-ratio: 1 / 1;
+        border-radius: 50%;
+        border: none;
+        cursor: pointer;
+        font-size: clamp(1.2rem, 2vw + 1rem, 2rem);
+        color: #fff;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        transition: transform 0.08s ease, box-shadow 0.2s ease;
+        background: var(--red);
+        box-shadow: 0 0 30px var(--glow-red), inset 0 0 40px rgba(255, 255, 255, 0.15);
+      }
+
+      .team-button.blue {
+        background: var(--blue);
+        box-shadow: 0 0 30px var(--glow-blue), inset 0 0 40px rgba(255, 255, 255, 0.15);
+      }
+
+      .team-button:active {
+        transform: scale(0.97);
+      }
+
+      .team-button:disabled {
+        cursor: not-allowed;
+        filter: grayscale(0.4);
+        opacity: 0.6;
+        transform: none;
+      }
+
+      .team-button.shake {
+        animation: shake 0.35s ease-in-out;
+      }
+
+      @keyframes shake {
+        0% {
+          transform: translateX(0);
+        }
+        20% {
+          transform: translateX(-6px);
+        }
+        40% {
+          transform: translateX(6px);
+        }
+        60% {
+          transform: translateX(-4px);
+        }
+        80% {
+          transform: translateX(4px);
+        }
+        100% {
+          transform: translateX(0);
+        }
+      }
+
+      .status {
+        font-size: 1.2rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+
+      .winner {
+        font-size: clamp(2rem, 3vw + 1rem, 3rem);
+        font-weight: 800;
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+      }
+
+      .restart-btn {
+        padding: 12px 28px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        background: rgba(255, 255, 255, 0.1);
+        color: var(--text);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        cursor: pointer;
+        transition: background 0.2s ease, transform 0.1s ease;
+      }
+
+      .restart-btn:hover {
+        background: rgba(255, 255, 255, 0.18);
+      }
+
+      .restart-btn:active {
+        transform: scale(0.97);
+      }
+
+      .modal {
+        position: fixed;
+        inset: 0;
+        background: rgba(6, 9, 16, 0.9);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+        backdrop-filter: blur(4px);
+      }
+
+      .modal-card {
+        background: var(--panel);
+        padding: 32px;
+        border-radius: 24px;
+        width: min(420px, 90vw);
+        text-align: center;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+
+      .modal-card h2 {
+        font-size: 1.8rem;
+      }
+
+      .modal-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .modal-actions button {
+        padding: 14px 18px;
+        border-radius: 14px;
+        font-size: 1rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        border: none;
+        color: #fff;
+        cursor: pointer;
+      }
+
+      .join-red {
+        background: var(--red);
+        box-shadow: 0 0 20px var(--glow-red);
+      }
+
+      .join-blue {
+        background: var(--blue);
+        box-shadow: 0 0 20px var(--glow-blue);
+      }
+
+      @media (max-width: 720px) {
+        .progress-bar {
+          height: 52px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="modal" id="teamModal">
+      <div class="modal-card">
+        <h2>Choose Your Side</h2>
+        <div class="modal-actions">
+          <button class="join-red" id="joinRed">Join Red</button>
+          <button class="join-blue" id="joinBlue">Join Blue</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="app">
+      <header>
+        <h1>Tug of War</h1>
+        <p>Real-time push. First team to ±100 wins.</p>
+      </header>
+
+      <section class="progress-wrap">
+        <div class="progress-bar">
+          <div class="progress-glow"></div>
+          <div class="progress-track"></div>
+          <div class="progress-center"></div>
+          <div class="progress-indicator" id="indicator"></div>
+          <div class="progress-sweep"></div>
+        </div>
+        <div class="score-line">
+          <span>Blue Victory <strong>-100</strong></span>
+          <span class="score-value">Score: <strong id="scoreValue">0</strong></span>
+          <span>Red Victory <strong>+100</strong></span>
+        </div>
+      </section>
+
+      <section class="controls">
+        <button class="team-button" id="teamButton">Tap to Pull</button>
+        <div class="status" id="statusText">Pick a side to start</div>
+        <div class="winner" id="winnerText" hidden></div>
+        <button class="restart-btn" id="restartBtn" hidden>Restart</button>
+      </section>
+    </div>
+
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+      import { getAnalytics } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-analytics.js";
+      import {
+        getDatabase,
+        ref,
+        onValue,
+        runTransaction,
+        set
+      } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
+
+      const firebaseConfig = {
+        apiKey: "AIzaSyAp7xLybAuDTFEbjFWZezB_PC3FgiP2N70",
+        authDomain: "buttonwar-b5566.firebaseapp.com",
+        databaseURL: "https://buttonwar-b5566-default-rtdb.europe-west1.firebasedatabase.app",
+        projectId: "buttonwar-b5566",
+        storageBucket: "buttonwar-b5566.firebasestorage.app",
+        messagingSenderId: "800339162659",
+        appId: "1:800339162659:web:2d1fdee57d12e4f2eea396",
+        measurementId: "G-K4NM4PR2CW"
+      };
+
+      const app = initializeApp(firebaseConfig);
+      try {
+        getAnalytics(app);
+      } catch (error) {
+        console.warn("Analytics disabled:", error);
+      }
+
+      const db = getDatabase(app);
+      const scoreRef = ref(db, "score");
+
+      const teamModal = document.getElementById("teamModal");
+      const joinRed = document.getElementById("joinRed");
+      const joinBlue = document.getElementById("joinBlue");
+      const teamButton = document.getElementById("teamButton");
+      const scoreValue = document.getElementById("scoreValue");
+      const indicator = document.getElementById("indicator");
+      const statusText = document.getElementById("statusText");
+      const winnerText = document.getElementById("winnerText");
+      const restartBtn = document.getElementById("restartBtn");
+
+      let team = null;
+      let gameOver = false;
+      let currentScore = 0;
+      const cooldownMs = 500;
+      let lastClickAt = 0;
+
+      function clampScore(value) {
+        return Math.max(-100, Math.min(100, value));
+      }
+
+      function updateIndicator(score) {
+        const percent = ((score + 100) / 200) * 100;
+        indicator.style.left = `${percent}%`;
+      }
+
+      function setWinner(message, color) {
+        winnerText.hidden = false;
+        winnerText.textContent = message;
+        winnerText.style.color = color;
+        restartBtn.hidden = false;
+        teamButton.disabled = true;
+        statusText.textContent = "Game over";
+      }
+
+      function clearWinner() {
+        winnerText.hidden = true;
+        restartBtn.hidden = true;
+        teamButton.disabled = false;
+        statusText.textContent = team ? `${team.toUpperCase()} TEAM READY` : "Pick a side to start";
+      }
+
+      function applyTeamStyle() {
+        if (team === "red") {
+          teamButton.classList.remove("blue");
+          teamButton.style.background = "var(--red)";
+          teamButton.style.boxShadow = "0 0 30px var(--glow-red), inset 0 0 40px rgba(255, 255, 255, 0.15)";
+          statusText.textContent = "RED TEAM READY";
+        } else if (team === "blue") {
+          teamButton.classList.add("blue");
+          teamButton.style.background = "var(--blue)";
+          teamButton.style.boxShadow = "0 0 30px var(--glow-blue), inset 0 0 40px rgba(255, 255, 255, 0.15)";
+          statusText.textContent = "BLUE TEAM READY";
+        }
+      }
+
+      joinRed.addEventListener("click", () => {
+        team = "red";
+        teamModal.style.display = "none";
+        applyTeamStyle();
+      });
+
+      joinBlue.addEventListener("click", () => {
+        team = "blue";
+        teamModal.style.display = "none";
+        applyTeamStyle();
+      });
+
+      teamButton.addEventListener("click", () => {
+        if (!team || gameOver) return;
+        teamButton.classList.remove("shake");
+        void teamButton.offsetWidth;
+        teamButton.classList.add("shake");
+        const now = Date.now();
+        if (now - lastClickAt < cooldownMs) {
+          return;
+        }
+        lastClickAt = now;
+        const delta = team === "red" ? 1 : -1;
+        runTransaction(scoreRef, (value) => {
+          const safeValue = typeof value === "number" ? value : 0;
+          if (safeValue >= 100 || safeValue <= -100) {
+            return safeValue;
+          }
+          return safeValue + delta;
+        });
+      });
+
+      restartBtn.addEventListener("click", () => {
+        set(scoreRef, 0);
+      });
+
+      onValue(scoreRef, (snapshot) => {
+        const value = snapshot.val();
+        if (value === null) {
+          set(scoreRef, 0);
+          return;
+        }
+        currentScore = clampScore(value);
+        scoreValue.textContent = currentScore;
+        updateIndicator(currentScore);
+
+        if (currentScore >= 100) {
+          gameOver = true;
+          setWinner("RED WINS", "var(--red)");
+          return;
+        }
+        if (currentScore <= -100) {
+          gameOver = true;
+          setWinner("BLUE WINS", "var(--blue)");
+          return;
+        }
+        gameOver = false;
+        clearWinner();
+      });
+
+      updateIndicator(currentScore);
+    </script>
+  </body>
+</html>
