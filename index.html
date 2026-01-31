@@ -275,100 +275,9 @@
         font-size: 1.8rem;
       }
 
-      .field {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-      }
-
-      .field label {
-        text-transform: uppercase;
-        letter-spacing: 0.12em;
-        font-size: 0.75rem;
-        color: var(--muted);
-      }
-
-      .field input {
-        background: rgba(8, 12, 20, 0.8);
-        border: 1px solid rgba(255, 255, 255, 0.16);
-        border-radius: 12px;
-        color: var(--text);
-        font-size: 1rem;
-        padding: 12px 14px;
-        text-transform: uppercase;
-        letter-spacing: 0.14em;
-        outline: none;
-      }
-
-      .field input:focus {
-        border-color: rgba(255, 255, 255, 0.4);
-        box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.08);
-      }
-
-      .field button {
-        padding: 12px 18px;
-        border-radius: 12px;
-        font-size: 0.95rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        border: none;
-        color: #fff;
-        cursor: pointer;
-      }
-
       .hint {
         font-size: 0.85rem;
         color: var(--muted);
-      }
-
-      .room-code {
-        font-weight: 700;
-        letter-spacing: 0.2em;
-        color: var(--text);
-      }
-
-      .host-code {
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-        padding: 14px;
-        border-radius: 16px;
-        background: rgba(8, 12, 20, 0.8);
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        text-align: center;
-      }
-
-      .copy-btn {
-        align-self: center;
-        padding: 8px 16px;
-        border-radius: 999px;
-        border: 1px solid rgba(255, 255, 255, 0.3);
-        background: rgba(255, 255, 255, 0.08);
-        color: var(--text);
-        text-transform: uppercase;
-        letter-spacing: 0.1em;
-        font-size: 0.75rem;
-        cursor: pointer;
-        transition: background 0.2s ease, transform 0.1s ease;
-      }
-
-      .copy-btn:hover {
-        background: rgba(255, 255, 255, 0.16);
-      }
-
-      .copy-btn:active {
-        transform: scale(0.97);
-      }
-
-      .error {
-        color: #ff9090;
-        font-size: 0.85rem;
-        min-height: 1.1em;
-      }
-
-      .hidden {
-        display: none;
       }
 
       .modal-actions {
@@ -387,17 +296,6 @@
         border: none;
         color: #fff;
         cursor: pointer;
-      }
-
-      .modal-primary {
-        background: linear-gradient(135deg, #6d7bff, #7c3cff);
-        box-shadow: 0 0 20px rgba(120, 90, 255, 0.45);
-      }
-
-      .modal-secondary {
-        background: rgba(255, 255, 255, 0.12);
-        border: 1px solid rgba(255, 255, 255, 0.18);
-        box-shadow: 0 0 16px rgba(0, 0, 0, 0.3);
       }
 
       .join-red {
@@ -428,29 +326,6 @@
       </div>
     </div>
 
-    <div class="modal" id="roomModal">
-      <div class="modal-card">
-        <h2>Create or Join Game</h2>
-        <div class="hint">Host a game to get a random code.</div>
-        <div class="modal-actions" id="roomActions">
-          <button class="modal-primary" id="hostGame">Host New Game</button>
-          <button class="modal-secondary" id="showJoin">Join With Code</button>
-        </div>
-        <div class="host-code hidden" id="hostCodeWrap">
-          <div class="hint">Share this code with friends</div>
-          <div class="room-code" id="hostCode">----</div>
-          <button class="copy-btn" id="copyHostCode">Copy Code</button>
-          <button class="modal-primary" id="continueToTeam">Choose Team</button>
-        </div>
-        <div class="field hidden" id="joinField">
-          <label for="roomInput">Code to Join</label>
-          <input id="roomInput" maxlength="6" placeholder="AB12CD" />
-          <div class="error" id="roomError"></div>
-          <button class="modal-primary" id="joinRoom">Join Game</button>
-        </div>
-      </div>
-    </div>
-
     <div class="app">
       <header>
         <h1>Tug of War</h1>
@@ -475,8 +350,6 @@
       <section class="controls">
         <button class="team-button" id="teamButton">Tap to Pull</button>
         <div class="status" id="statusText">Pick a side to start</div>
-        <div class="hint">Game Code: <span class="room-code" id="roomCode">----</span></div>
-        <button class="copy-btn" id="copyMainCode">Copy Code</button>
         <div class="winner" id="winnerText" hidden></div>
         <button class="restart-btn" id="restartBtn" hidden>Restart</button>
       </section>
@@ -515,27 +388,10 @@
       }
 
       const db = getDatabase(app);
-      let scoreRef = null;
-      let playersRef = null;
-      let gameRef = null;
-      let unsubscribeScore = null;
-      let unsubscribePlayers = null;
-      let gameCode = null;
+      const scoreRef = ref(db, "score");
+      const playersRef = ref(db, "players");
 
       const teamModal = document.getElementById("teamModal");
-      const roomModal = document.getElementById("roomModal");
-      const roomInput = document.getElementById("roomInput");
-      const joinRoom = document.getElementById("joinRoom");
-      const hostGame = document.getElementById("hostGame");
-      const showJoin = document.getElementById("showJoin");
-      const roomActions = document.getElementById("roomActions");
-      const hostCodeWrap = document.getElementById("hostCodeWrap");
-      const hostCode = document.getElementById("hostCode");
-      const copyHostCode = document.getElementById("copyHostCode");
-      const continueToTeam = document.getElementById("continueToTeam");
-      const joinField = document.getElementById("joinField");
-      const roomError = document.getElementById("roomError");
-      const roomCodeText = document.getElementById("roomCode");
       const joinRed = document.getElementById("joinRed");
       const joinBlue = document.getElementById("joinBlue");
       const teamButton = document.getElementById("teamButton");
@@ -546,7 +402,6 @@
       const statusText = document.getElementById("statusText");
       const winnerText = document.getElementById("winnerText");
       const restartBtn = document.getElementById("restartBtn");
-      const copyMainCode = document.getElementById("copyMainCode");
 
       let team = null;
       let gameOver = false;
@@ -603,19 +458,6 @@
         }
       }
 
-      function normalizeCode(value) {
-        return value.replace(/[^a-z0-9]/gi, "").toUpperCase().slice(0, 6);
-      }
-
-      function generateCode() {
-        const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-        let output = "";
-        for (let i = 0; i < 6; i += 1) {
-          output += chars[Math.floor(Math.random() * chars.length)];
-        }
-        return output;
-      }
-
       function setWaitingState(isWaiting) {
         waiting = isWaiting;
         teamButton.disabled = waiting || !team || gameOver;
@@ -627,28 +469,8 @@
           : "Pick a side to start";
       }
 
-      async function copyTextToClipboard(text) {
-        if (!text) return;
-        try {
-          await navigator.clipboard.writeText(text);
-          statusText.textContent = "Code copied!";
-          setTimeout(() => {
-            if (!gameOver) {
-              statusText.textContent = waiting
-                ? "Waiting for opponent..."
-                : team
-                ? `${team.toUpperCase()} TEAM READY`
-                : "Pick a side to start";
-            }
-          }, 1200);
-        } catch (error) {
-          console.warn("Copy failed", error);
-        }
-      }
-
       function getPlayerRef() {
-        if (!gameCode) return null;
-        return ref(db, `games/${gameCode}/players/${playerId}`);
+        return ref(db, `players/${playerId}`);
       }
 
       async function upsertPlayer(teamValue = team) {
@@ -660,21 +482,47 @@
         await set(playerRef, { team: teamValue ?? null, joinedAt: playerJoinedAt });
       }
 
-      function cleanupListeners() {
-        if (unsubscribeScore) unsubscribeScore();
-        if (unsubscribePlayers) unsubscribePlayers();
-      }
+      joinRed.addEventListener("click", () => {
+        team = "red";
+        teamModal.style.display = "none";
+        applyTeamStyle();
+        upsertPlayer(team);
+      });
 
-      async function joinGame(code) {
-        cleanupListeners();
-        gameCode = code;
-        roomCodeText.textContent = gameCode;
-        gameRef = ref(db, `games/${gameCode}`);
-        scoreRef = ref(db, `games/${gameCode}/score`);
-        playersRef = ref(db, `games/${gameCode}/players`);
+      joinBlue.addEventListener("click", () => {
+        team = "blue";
+        teamModal.style.display = "none";
+        applyTeamStyle();
+        upsertPlayer(team);
+      });
 
+      teamButton.addEventListener("click", () => {
+        if (!team || gameOver || waiting) return;
+        teamButton.classList.remove("shake");
+        void teamButton.offsetWidth;
+        teamButton.classList.add("shake");
+        const now = Date.now();
+        if (now - lastClickAt < cooldownMs) {
+          return;
+        }
+        lastClickAt = now;
+        const delta = team === "red" ? 1 : -1;
+        runTransaction(scoreRef, (value) => {
+          const safeValue = typeof value === "number" ? value : 0;
+          if (safeValue >= maxScore || safeValue <= -maxScore) {
+            return safeValue;
+          }
+          return safeValue + delta;
+        });
+      });
+
+      restartBtn.addEventListener("click", () => {
+        set(scoreRef, 0);
+      });
+
+      function initGame() {
         playerJoinedAt = Date.now();
-        await upsertPlayer(team);
+        upsertPlayer(team);
         const playerRef = getPlayerRef();
         if (playerRef) {
           onDisconnect(playerRef).remove();
@@ -688,7 +536,7 @@
           }
         }, 800);
 
-        unsubscribePlayers = onValue(playersRef, (snapshot) => {
+        onValue(playersRef, (snapshot) => {
           const playerCount = snapshot.numChildren();
           let readyCount = 0;
           snapshot.forEach((child) => {
@@ -700,7 +548,7 @@
           setWaitingState(playerCount < 2 || readyCount < 2);
         });
 
-        unsubscribeScore = onValue(scoreRef, (snapshot) => {
+        onValue(scoreRef, (snapshot) => {
           const value = snapshot.val();
           if (value === null) {
             set(scoreRef, 0);
@@ -725,115 +573,7 @@
         });
       }
 
-      async function createGame() {
-        const code = generateCode();
-        const newGameRef = ref(db, `games/${code}`);
-        await runTransaction(newGameRef, (game) => {
-          if (game) return game;
-          return { score: 0 };
-        });
-        return code;
-      }
-
-      roomInput.addEventListener("input", (event) => {
-        const normalized = normalizeCode(event.target.value);
-        event.target.value = normalized;
-      });
-
-      showJoin.addEventListener("click", () => {
-        joinField.classList.remove("hidden");
-        roomInput.focus();
-      });
-
-      joinRoom.addEventListener("click", async () => {
-        const code = normalizeCode(roomInput.value);
-        roomError.textContent = "";
-        if (!code) {
-          roomError.textContent = "Enter a valid code.";
-          return;
-        }
-        const targetRef = ref(db, `games/${code}`);
-        const snapshot = await get(targetRef);
-        if (!snapshot.exists()) {
-          roomError.textContent = "Game not found.";
-          return;
-        }
-        roomModal.style.display = "none";
-        teamModal.style.display = "flex";
-        await joinGame(code);
-      });
-
-      roomInput.addEventListener("keydown", (event) => {
-        if (event.key === "Enter") {
-          joinRoom.click();
-        }
-      });
-
-      hostGame.addEventListener("click", async () => {
-        roomError.textContent = "";
-        const code = await createGame();
-        await joinGame(code);
-        hostCode.textContent = code;
-        roomActions.classList.add("hidden");
-        joinField.classList.add("hidden");
-        hostCodeWrap.classList.remove("hidden");
-      });
-
-      copyHostCode.addEventListener("click", () => {
-        copyTextToClipboard(gameCode);
-      });
-
-      copyMainCode.addEventListener("click", () => {
-        copyTextToClipboard(gameCode);
-      });
-
-      continueToTeam.addEventListener("click", () => {
-        roomModal.style.display = "none";
-        teamModal.style.display = "flex";
-      });
-
-      joinRed.addEventListener("click", () => {
-        team = "red";
-        teamModal.style.display = "none";
-        applyTeamStyle();
-        if (gameRef) {
-          upsertPlayer(team);
-        }
-      });
-
-      joinBlue.addEventListener("click", () => {
-        team = "blue";
-        teamModal.style.display = "none";
-        applyTeamStyle();
-        if (gameRef) {
-          upsertPlayer(team);
-        }
-      });
-
-      teamButton.addEventListener("click", () => {
-        if (!team || gameOver || waiting) return;
-        teamButton.classList.remove("shake");
-        void teamButton.offsetWidth;
-        teamButton.classList.add("shake");
-        const now = Date.now();
-        if (now - lastClickAt < cooldownMs) {
-          return;
-        }
-        lastClickAt = now;
-        const delta = team === "red" ? 1 : -1;
-        runTransaction(scoreRef, (value) => {
-          const safeValue = typeof value === "number" ? value : 0;
-          if (safeValue >= maxScore || safeValue <= -maxScore) {
-            return safeValue;
-          }
-          return safeValue + delta;
-        });
-      });
-
-      restartBtn.addEventListener("click", () => {
-        if (scoreRef) set(scoreRef, 0);
-      });
-
+      initGame();
       updateIndicator(currentScore);
       minScoreLabel.textContent = `-${maxScore}`;
       maxScoreLabel.textContent = `+${maxScore}`;
