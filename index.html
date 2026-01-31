@@ -294,7 +294,7 @@
         inset: 0;
         pointer-events: none;
         overflow: hidden;
-        z-index: 2;
+        z-index: 5;
       }
 
       .confetti-layer {
@@ -326,9 +326,9 @@
 
       .balloon {
         position: absolute;
-        bottom: -80px;
-        width: 46px;
-        height: 60px;
+        bottom: 20px;
+        width: 58px;
+        height: 74px;
         border-radius: 50% 50% 45% 45%;
         display: grid;
         place-items: center;
@@ -339,7 +339,7 @@
         cursor: pointer;
         pointer-events: auto;
         box-shadow: 0 0 18px rgba(0, 0, 0, 0.4);
-        animation: floatUp 6.5s linear forwards;
+        animation: floatUp 7.5s linear forwards;
       }
 
       .balloon.any {
@@ -837,7 +837,7 @@
 
       function scheduleNextBalloon() {
         if (gameOver) return;
-        const delay = 6000 + Math.random() * 6000;
+        const delay = 2500 + Math.random() * 3500;
         balloonTimer = setTimeout(() => {
           trySpawnBalloon();
           scheduleNextBalloon();
@@ -856,7 +856,7 @@
             id: `${now}_${Math.random().toString(36).slice(2, 8)}`,
             type,
             x: 10 + Math.random() * 80,
-            expiresAt: now + 4200
+            expiresAt: now + 7000
           };
         });
       }
