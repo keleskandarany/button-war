@@ -32,6 +32,36 @@
         justify-content: center;
         align-items: center;
         padding: 32px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      body::before {
+        content: "";
+        position: absolute;
+        inset: -30%;
+        background: conic-gradient(
+          from 120deg,
+          rgba(255, 59, 92, 0.18),
+          rgba(43, 123, 255, 0.18),
+          rgba(255, 212, 102, 0.18),
+          rgba(92, 255, 194, 0.18),
+          rgba(147, 112, 255, 0.18),
+          rgba(255, 59, 92, 0.18)
+        );
+        filter: blur(120px);
+        opacity: 0.8;
+        z-index: 0;
+        animation: hueSpin 16s linear infinite;
+      }
+
+      @keyframes hueSpin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
       }
 
       .app {
@@ -40,6 +70,8 @@
         flex-direction: column;
         gap: 32px;
         align-items: center;
+        position: relative;
+        z-index: 1;
       }
 
       header {
@@ -53,6 +85,10 @@
         font-size: clamp(2rem, 3vw + 1rem, 3.5rem);
         letter-spacing: 0.08em;
         text-transform: uppercase;
+        background: linear-gradient(120deg, #ff6b9a, #7aa6ff, #ffe066, #7cffc0);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
       }
 
       header p {
@@ -66,6 +102,7 @@
         border-radius: 32px;
         padding: 18px;
         box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.12);
       }
 
       .progress-bar {
@@ -227,6 +264,16 @@
         text-transform: uppercase;
         letter-spacing: 0.12em;
       }
+      .shoutout {
+        font-size: 0.95rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .shoutout strong {
+        color: #ffe066;
+      }
 
       .effects strong {
         color: var(--text);
@@ -256,6 +303,10 @@
         pointer-events: auto;
         box-shadow: 0 0 18px rgba(0, 0, 0, 0.4);
         animation: floatUp 6.5s linear forwards;
+      }
+
+      .balloon.any {
+        background: radial-gradient(circle at 30% 30%, #ffd59e, #ff9f43);
       }
 
       .balloon::after {
@@ -399,7 +450,8 @@
     <div class="app">
       <header>
         <h1>Tug of War</h1>
-        <p>Real-time push. First team to ±10 wins.</p>
+        <p>Real-time push. First team to ±15 wins.</p>
+        <div class="shoutout">Shout out to <strong>Khadija</strong> ✨</div>
       </header>
 
       <section class="progress-wrap">
@@ -461,6 +513,7 @@
       const db = getDatabase(app);
       const scoreRef = ref(db, "score");
       const effectsRef = ref(db, "effects");
+      const balloonRef = ref(db, "balloon");
 
       const teamModal = document.getElementById("teamModal");
       const joinRed = document.getElementById("joinRed");
@@ -479,19 +532,23 @@
       let team = null;
       let gameOver = false;
       let currentScore = 0;
-      const maxScore = 10;
+      const maxScore = 15;
       const cooldownMs = 1000;
       const freezeDurationMs = 2500;
       const boostDurationMs = 6000;
+      const shieldDurationMs = 6000;
       const surgeBonus = 2;
       let lastClickAt = 0;
       let waiting = false;
       let balloonTimer = null;
+      let activeBalloon = null;
       let currentEffects = {
         freezeRedUntil: 0,
         freezeBlueUntil: 0,
         boostRedUntil: 0,
-        boostBlueUntil: 0
+        boostBlueUntil: 0,
+        shieldRedUntil: 0,
+        shieldBlueUntil: 0
       };
       const playerId = typeof crypto !== "undefined" && crypto.randomUUID
         ? crypto.randomUUID()
@@ -557,6 +614,16 @@
         return false;
       }
 
+      function hasShield(teamName, now) {
+        if (teamName === "red") {
+          return currentEffects.shieldRedUntil > now;
+        }
+        if (teamName === "blue") {
+          return currentEffects.shieldBlueUntil > now;
+        }
+        return false;
+      }
+
       function updateEffectsUI(now) {
         const active = [];
         if (currentEffects.freezeRedUntil > now) {
@@ -571,6 +638,12 @@
         if (currentEffects.boostBlueUntil > now) {
           active.push("BLUE BOOST");
         }
+        if (currentEffects.shieldRedUntil > now) {
+          active.push("RED SHIELD");
+        }
+        if (currentEffects.shieldBlueUntil > now) {
+          active.push("BLUE SHIELD");
+        }
         effectsText.innerHTML = active.length
           ? `Active: <strong>${active.join(" · ")}</strong>`
           : "Power-ups ready";
@@ -580,18 +653,37 @@
         if (!team || gameOver) return;
         const delay = 3500 + Math.random() * 4500;
         balloonTimer = setTimeout(() => {
-          spawnBalloon(team);
+          trySpawnBalloon();
           scheduleNextBalloon();
         }, delay);
       }
 
-      function spawnBalloon(teamName) {
+      function trySpawnBalloon() {
+        const now = Date.now();
+        runTransaction(balloonRef, (current) => {
+          if (current && current.expiresAt > now) {
+            return current;
+          }
+          const types = ["freeze", "boost", "surge", "slam", "swap", "shield", "quake"];
+          const type = types[Math.floor(Math.random() * types.length)];
+          return {
+            id: `${now}_${Math.random().toString(36).slice(2, 8)}`,
+            type,
+            x: 10 + Math.random() * 80,
+            expiresAt: now + 7000
+          };
+        });
+      }
+
+      function renderBalloon(data) {
+        balloonLayer.innerHTML = "";
+        if (!data) return;
+        const now = Date.now();
+        if (data.expiresAt <= now) return;
         const balloon = document.createElement("button");
-        const types = ["freeze", "boost", "surge"];
-        const type = types[Math.floor(Math.random() * types.length)];
-        balloon.className = `balloon ${teamName}`;
-        balloon.textContent = type === "freeze" ? "ICE" : type === "boost" ? "BOOST" : "SURGE";
-        balloon.style.left = `${10 + Math.random() * 80}%`;
+        balloon.className = "balloon any";
+        balloon.textContent = data.type.toUpperCase();
+        balloon.style.left = `${data.x}%`;
         balloonLayer.appendChild(balloon);
 
         const cleanup = () => {
@@ -601,19 +693,18 @@
 
         const onClick = () => {
           if (!team || gameOver) return;
-          if (team !== teamName) return;
-          const now = Date.now();
-          if (type === "freeze") {
-            const opponent = teamName === "red" ? "blue" : "red";
+          const nowClick = Date.now();
+          if (data.type === "freeze") {
+            const opponent = team === "red" ? "blue" : "red";
             const key = opponent === "red" ? "freezeRedUntil" : "freezeBlueUntil";
-            set(ref(db, `effects/${key}`), now + freezeDurationMs);
+            set(ref(db, `effects/${key}`), nowClick + freezeDurationMs);
             statusText.textContent = `${opponent.toUpperCase()} FROZEN!`;
-          } else if (type === "boost") {
-            const key = teamName === "red" ? "boostRedUntil" : "boostBlueUntil";
-            set(ref(db, `effects/${key}`), now + boostDurationMs);
-            statusText.textContent = `${teamName.toUpperCase()} BOOSTED!`;
-          } else {
-            const baseDelta = teamName === "red" ? 1 : -1;
+          } else if (data.type === "boost") {
+            const key = team === "red" ? "boostRedUntil" : "boostBlueUntil";
+            set(ref(db, `effects/${key}`), nowClick + boostDurationMs);
+            statusText.textContent = `${team.toUpperCase()} BOOSTED!`;
+          } else if (data.type === "surge") {
+            const baseDelta = team === "red" ? 1 : -1;
             runTransaction(scoreRef, (value) => {
               const safeValue = typeof value === "number" ? value : 0;
               if (safeValue >= maxScore || safeValue <= -maxScore) {
@@ -622,7 +713,40 @@
               return safeValue + baseDelta * (1 + surgeBonus);
             });
             statusText.textContent = "LUCKY SURGE!";
+          } else if (data.type === "slam") {
+            const baseDelta = team === "red" ? 3 : -3;
+            runTransaction(scoreRef, (value) => {
+              const safeValue = typeof value === "number" ? value : 0;
+              if (safeValue >= maxScore || safeValue <= -maxScore) {
+                return safeValue;
+              }
+              return safeValue + baseDelta;
+            });
+            statusText.textContent = "POWER SLAM!";
+          } else if (data.type === "swap") {
+            runTransaction(scoreRef, (value) => {
+              const safeValue = typeof value === "number" ? value : 0;
+              return safeValue * -1;
+            });
+            statusText.textContent = "SCORE FLIP!";
+          } else if (data.type === "shield") {
+            const key = team === "red" ? "shieldRedUntil" : "shieldBlueUntil";
+            set(ref(db, `effects/${key}`), nowClick + shieldDurationMs);
+            statusText.textContent = `${team.toUpperCase()} SHIELD!`;
+          } else if (data.type === "quake") {
+            const swing = Math.floor(Math.random() * 5) - 2;
+            if (swing !== 0) {
+              runTransaction(scoreRef, (value) => {
+                const safeValue = typeof value === "number" ? value : 0;
+                if (safeValue >= maxScore || safeValue <= -maxScore) {
+                  return safeValue;
+                }
+                return safeValue + swing;
+              });
+            }
+            statusText.textContent = "CHAOS QUAKE!";
           }
+          set(balloonRef, null);
           cleanup();
         };
 
@@ -659,6 +783,11 @@
         }
         if (isFrozen(team, now)) {
           statusText.textContent = `${team.toUpperCase()} FROZEN`;
+          return;
+        }
+        const opponent = team === "red" ? "blue" : "red";
+        if (hasShield(opponent, now)) {
+          statusText.textContent = `${opponent.toUpperCase()} SHIELD`;
           return;
         }
         lastClickAt = now;
@@ -719,9 +848,16 @@
             freezeRedUntil: value.freezeRedUntil || 0,
             freezeBlueUntil: value.freezeBlueUntil || 0,
             boostRedUntil: value.boostRedUntil || 0,
-            boostBlueUntil: value.boostBlueUntil || 0
+            boostBlueUntil: value.boostBlueUntil || 0,
+            shieldRedUntil: value.shieldRedUntil || 0,
+            shieldBlueUntil: value.shieldBlueUntil || 0
           };
           updateEffectsUI(Date.now());
+        });
+
+        onValue(balloonRef, (snapshot) => {
+          activeBalloon = snapshot.val();
+          renderBalloon(activeBalloon);
         });
       }
 
