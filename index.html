@@ -329,7 +329,7 @@
     <div class="app">
       <header>
         <h1>Tug of War</h1>
-        <p>Real-time push. First team to ±15 wins.</p>
+        <p>Real-time push. First team to ±20 wins.</p>
       </header>
 
       <section class="progress-wrap">
@@ -406,7 +406,7 @@
       let team = null;
       let gameOver = false;
       let currentScore = 0;
-      const maxScore = 15;
+      const maxScore = 20;
       const cooldownMs = 500;
       let lastClickAt = 0;
       let waiting = true;
@@ -538,14 +538,7 @@
 
         onValue(playersRef, (snapshot) => {
           const playerCount = snapshot.numChildren();
-          let readyCount = 0;
-          snapshot.forEach((child) => {
-            const player = child.val();
-            if (player && player.team) {
-              readyCount += 1;
-            }
-          });
-          setWaitingState(playerCount < 2 || readyCount < 2);
+          setWaitingState(playerCount < 2);
         });
 
         onValue(scoreRef, (snapshot) => {
