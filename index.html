@@ -555,6 +555,7 @@
       const cooldownMs = 500;
       let lastClickAt = 0;
       let waiting = true;
+      let playerJoinedAt = null;
       const playerId = typeof crypto !== "undefined" && crypto.randomUUID
         ? crypto.randomUUID()
         : `player_${Math.random().toString(36).slice(2, 10)}`;
@@ -645,6 +646,20 @@
         }
       }
 
+      function getPlayerRef() {
+        if (!gameCode) return null;
+        return ref(db, `games/${gameCode}/players/${playerId}`);
+      }
+
+      async function upsertPlayer(teamValue = team) {
+        const playerRef = getPlayerRef();
+        if (!playerRef) return;
+        if (!playerJoinedAt) {
+          playerJoinedAt = Date.now();
+        }
+        await set(playerRef, { team: teamValue ?? null, joinedAt: playerJoinedAt });
+      }
+
       function cleanupListeners() {
         if (unsubscribeScore) unsubscribeScore();
         if (unsubscribePlayers) unsubscribePlayers();
@@ -658,9 +673,20 @@
         scoreRef = ref(db, `games/${gameCode}/score`);
         playersRef = ref(db, `games/${gameCode}/players`);
 
-        const playerRef = ref(db, `games/${gameCode}/players/${playerId}`);
-        await set(playerRef, { team: team ?? null, joinedAt: Date.now() });
-        onDisconnect(playerRef).remove();
+        playerJoinedAt = Date.now();
+        await upsertPlayer(team);
+        const playerRef = getPlayerRef();
+        if (playerRef) {
+          onDisconnect(playerRef).remove();
+        }
+        setTimeout(async () => {
+          const verifyRef = getPlayerRef();
+          if (!verifyRef) return;
+          const snapshot = await get(verifyRef);
+          if (!snapshot.exists()) {
+            await upsertPlayer(team);
+          }
+        }, 800);
 
         unsubscribePlayers = onValue(playersRef, (snapshot) => {
           const playerCount = snapshot.numChildren();
@@ -771,8 +797,7 @@
         teamModal.style.display = "none";
         applyTeamStyle();
         if (gameRef) {
-          const playerRef = ref(db, `games/${gameCode}/players/${playerId}`);
-          set(playerRef, { team, joinedAt: Date.now() });
+          upsertPlayer(team);
         }
       });
 
@@ -781,8 +806,7 @@
         teamModal.style.display = "none";
         applyTeamStyle();
         if (gameRef) {
-          const playerRef = ref(db, `games/${gameCode}/players/${playerId}`);
-          set(playerRef, { team, joinedAt: Date.now() });
+          upsertPlayer(team);
         }
       });
 
