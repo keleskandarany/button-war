@@ -663,9 +663,15 @@
         onDisconnect(playerRef).remove();
 
         unsubscribePlayers = onValue(playersRef, (snapshot) => {
-          const players = snapshot.val() || {};
-          const playerCount = Object.keys(players).length;
-          setWaitingState(playerCount < 2);
+          const playerCount = snapshot.numChildren();
+          let readyCount = 0;
+          snapshot.forEach((child) => {
+            const player = child.val();
+            if (player && player.team) {
+              readyCount += 1;
+            }
+          });
+          setWaitingState(playerCount < 2 || readyCount < 2);
         });
 
         unsubscribeScore = onValue(scoreRef, (snapshot) => {
