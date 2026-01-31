@@ -339,6 +339,28 @@
         text-align: center;
       }
 
+      .copy-btn {
+        align-self: center;
+        padding: 8px 16px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        background: rgba(255, 255, 255, 0.08);
+        color: var(--text);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        font-size: 0.75rem;
+        cursor: pointer;
+        transition: background 0.2s ease, transform 0.1s ease;
+      }
+
+      .copy-btn:hover {
+        background: rgba(255, 255, 255, 0.16);
+      }
+
+      .copy-btn:active {
+        transform: scale(0.97);
+      }
+
       .error {
         color: #ff9090;
         font-size: 0.85rem;
@@ -417,6 +439,7 @@
         <div class="host-code hidden" id="hostCodeWrap">
           <div class="hint">Share this code with friends</div>
           <div class="room-code" id="hostCode">----</div>
+          <button class="copy-btn" id="copyHostCode">Copy Code</button>
           <button class="modal-primary" id="continueToTeam">Choose Team</button>
         </div>
         <div class="field hidden" id="joinField">
@@ -453,6 +476,7 @@
         <button class="team-button" id="teamButton">Tap to Pull</button>
         <div class="status" id="statusText">Pick a side to start</div>
         <div class="hint">Game Code: <span class="room-code" id="roomCode">----</span></div>
+        <button class="copy-btn" id="copyMainCode">Copy Code</button>
         <div class="winner" id="winnerText" hidden></div>
         <button class="restart-btn" id="restartBtn" hidden>Restart</button>
       </section>
@@ -507,6 +531,7 @@
       const roomActions = document.getElementById("roomActions");
       const hostCodeWrap = document.getElementById("hostCodeWrap");
       const hostCode = document.getElementById("hostCode");
+      const copyHostCode = document.getElementById("copyHostCode");
       const continueToTeam = document.getElementById("continueToTeam");
       const joinField = document.getElementById("joinField");
       const roomError = document.getElementById("roomError");
@@ -521,6 +546,7 @@
       const statusText = document.getElementById("statusText");
       const winnerText = document.getElementById("winnerText");
       const restartBtn = document.getElementById("restartBtn");
+      const copyMainCode = document.getElementById("copyMainCode");
 
       let team = null;
       let gameOver = false;
@@ -598,6 +624,25 @@
           : team
           ? `${team.toUpperCase()} TEAM READY`
           : "Pick a side to start";
+      }
+
+      async function copyTextToClipboard(text) {
+        if (!text) return;
+        try {
+          await navigator.clipboard.writeText(text);
+          statusText.textContent = "Code copied!";
+          setTimeout(() => {
+            if (!gameOver) {
+              statusText.textContent = waiting
+                ? "Waiting for opponent..."
+                : team
+                ? `${team.toUpperCase()} TEAM READY`
+                : "Pick a side to start";
+            }
+          }, 1200);
+        } catch (error) {
+          console.warn("Copy failed", error);
+        }
       }
 
       function cleanupListeners() {
@@ -700,6 +745,14 @@
         roomActions.classList.add("hidden");
         joinField.classList.add("hidden");
         hostCodeWrap.classList.remove("hidden");
+      });
+
+      copyHostCode.addEventListener("click", () => {
+        copyTextToClipboard(gameCode);
+      });
+
+      copyMainCode.addEventListener("click", () => {
+        copyTextToClipboard(gameCode);
       });
 
       continueToTeam.addEventListener("click", () => {
