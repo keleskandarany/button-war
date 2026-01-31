@@ -24,17 +24,24 @@
         font-family: "Inter", "Segoe UI", system-ui, sans-serif;
       }
 
+      html,
       body {
-        min-height: 100vh;
+        width: 100%;
+        height: 100%;
+      }
+
+      body {
+        min-height: 100dvh;
+        height: 100dvh;
         background: radial-gradient(circle at top, #1a2238 0%, #0b0f1a 55%, #070a12 100%);
         color: var(--text);
         display: flex;
+        flex-direction: column;
         justify-content: center;
         align-items: center;
-        padding: 32px;
+        padding: clamp(12px, 3vw, 24px);
         position: relative;
-        overflow-x: hidden;
-        overflow-y: auto;
+        overflow: hidden;
       }
 
       body::before {
@@ -86,7 +93,9 @@
         align-items: center;
         position: relative;
         z-index: 1;
-        padding-bottom: 24px;
+        padding-bottom: 8px;
+        justify-content: center;
+        max-height: 100%;
       }
 
       header {
@@ -478,7 +487,7 @@
         }
 
         .team-button {
-          width: min(320px, 78vw);
+          width: min(300px, 78vw);
         }
 
         .status {
@@ -497,6 +506,34 @@
 
         .team-button {
           width: min(320px, 72vw);
+        }
+      }
+
+      @media (max-height: 700px) {
+        header h1 {
+          font-size: clamp(1.5rem, 3.5vw + 0.8rem, 2.4rem);
+        }
+
+        .progress-bar {
+          height: 44px;
+        }
+
+        .team-button {
+          width: min(260px, 68vw);
+        }
+
+        .status {
+          font-size: 0.95rem;
+        }
+      }
+
+      @media (max-width: 400px) {
+        .team-button {
+          width: min(260px, 76vw);
+        }
+
+        header h1 {
+          font-size: clamp(1.6rem, 4vw + 1rem, 2.2rem);
         }
       }
     </style>
@@ -617,6 +654,7 @@
         shieldRedUntil: 0,
         shieldBlueUntil: 0
       };
+      let audioCtx = null;
       const playerId = typeof crypto !== "undefined" && crypto.randomUUID
         ? crypto.randomUUID()
         : `player_${Math.random().toString(36).slice(2, 10)}`;
@@ -726,6 +764,27 @@
         }, 1500);
       }
 
+      function ensureAudio() {
+        if (!audioCtx) {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+      }
+
+      function playTone(freq, duration = 0.12, type = "sine", gainValue = 0.15) {
+        if (!audioCtx) return;
+        const now = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.value = freq;
+        gain.gain.value = gainValue;
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+        osc.stop(now + duration);
+      }
+
       function scheduleNextBalloon() {
         if (gameOver) return;
         const delay = 6000 + Math.random() * 6000;
@@ -770,17 +829,21 @@
 
         const onClick = () => {
           if (!team || gameOver) return;
+          ensureAudio();
           const nowClick = Date.now();
           if (data.type === "freeze") {
+            playTone(240, 0.14, "sawtooth", 0.12);
             const opponent = team === "red" ? "blue" : "red";
             const key = opponent === "red" ? "freezeRedUntil" : "freezeBlueUntil";
             set(ref(db, `effects/${key}`), nowClick + freezeDurationMs);
             statusText.textContent = `${opponent.toUpperCase()} FROZEN!`;
           } else if (data.type === "boost") {
+            playTone(660, 0.18, "triangle", 0.14);
             const key = team === "red" ? "boostRedUntil" : "boostBlueUntil";
             set(ref(db, `effects/${key}`), nowClick + boostDurationMs);
             statusText.textContent = `${team.toUpperCase()} BOOSTED!`;
           } else if (data.type === "surge") {
+            playTone(820, 0.16, "square", 0.12);
             const baseDelta = team === "red" ? 1 : -1;
             runTransaction(scoreRef, (value) => {
               const safeValue = typeof value === "number" ? value : 0;
@@ -791,6 +854,7 @@
             });
             statusText.textContent = "LUCKY SURGE!";
           } else if (data.type === "slam") {
+            playTone(180, 0.2, "sawtooth", 0.16);
             const baseDelta = team === "red" ? 3 : -3;
             runTransaction(scoreRef, (value) => {
               const safeValue = typeof value === "number" ? value : 0;
@@ -801,16 +865,19 @@
             });
             statusText.textContent = "POWER SLAM!";
           } else if (data.type === "swap") {
+            playTone(360, 0.22, "triangle", 0.14);
             runTransaction(scoreRef, (value) => {
               const safeValue = typeof value === "number" ? value : 0;
               return safeValue * -1;
             });
             statusText.textContent = "SCORE FLIP!";
           } else if (data.type === "shield") {
+            playTone(520, 0.2, "sine", 0.12);
             const key = team === "red" ? "shieldRedUntil" : "shieldBlueUntil";
             set(ref(db, `effects/${key}`), nowClick + shieldDurationMs);
             statusText.textContent = `${team.toUpperCase()} SHIELD!`;
           } else if (data.type === "quake") {
+            playTone(300, 0.24, "sawtooth", 0.12);
             const swing = Math.floor(Math.random() * 5) - 2;
             if (swing !== 0) {
               runTransaction(scoreRef, (value) => {
@@ -832,6 +899,7 @@
       }
 
       joinRed.addEventListener("click", () => {
+        ensureAudio();
         team = "red";
         teamModal.style.display = "none";
         applyTeamStyle();
@@ -845,6 +913,7 @@
       });
 
       joinBlue.addEventListener("click", () => {
+        ensureAudio();
         team = "blue";
         teamModal.style.display = "none";
         applyTeamStyle();
@@ -858,6 +927,7 @@
       });
 
       teamButton.addEventListener("click", () => {
+        ensureAudio();
         if (!team || gameOver) return;
         teamButton.classList.remove("shake");
         void teamButton.offsetWidth;
@@ -876,6 +946,7 @@
           return;
         }
         lastClickAt = now;
+        playTone(team === "red" ? 520 : 420, 0.08, "square", 0.1);
         const boosted = isBoosted(team, now);
         const baseDelta = team === "red" ? 1 : -1;
         const delta = baseDelta * (1 + (boosted ? 1 : 0));
