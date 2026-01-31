@@ -55,6 +55,19 @@
         animation: hueSpin 16s linear infinite;
       }
 
+      body::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(circle at 20% 20%, rgba(255, 214, 102, 0.2), transparent 45%),
+          radial-gradient(circle at 80% 10%, rgba(122, 166, 255, 0.2), transparent 40%),
+          radial-gradient(circle at 70% 80%, rgba(124, 255, 192, 0.18), transparent 45%);
+        mix-blend-mode: screen;
+        z-index: 0;
+        opacity: 0.7;
+        pointer-events: none;
+      }
+
       @keyframes hueSpin {
         0% {
           transform: rotate(0deg);
@@ -109,7 +122,13 @@
         position: relative;
         height: 64px;
         border-radius: 999px;
-        background: linear-gradient(90deg, rgba(43, 123, 255, 0.25), rgba(255, 59, 92, 0.25));
+        background: linear-gradient(
+          90deg,
+          rgba(43, 123, 255, 0.35),
+          rgba(124, 255, 192, 0.35),
+          rgba(255, 214, 102, 0.35),
+          rgba(255, 59, 92, 0.35)
+        );
         overflow: hidden;
       }
 
@@ -148,7 +167,7 @@
         width: 22px;
         background: #fff;
         border-radius: 999px;
-        box-shadow: 0 0 20px rgba(255, 255, 255, 0.8);
+        box-shadow: 0 0 20px rgba(255, 255, 255, 0.8), 0 0 40px rgba(255, 214, 102, 0.6);
         transform: translateX(-50%);
         transition: left 0.2s ease-out;
       }
@@ -174,7 +193,7 @@
         display: flex;
         justify-content: space-between;
         width: 100%;
-        margin-top: 10px;
+        margin-top: 4px;
         font-size: 0.9rem;
         color: var(--muted);
       }
@@ -191,12 +210,12 @@
       .controls {
         display: flex;
         flex-direction: column;
-        gap: 16px;
+        gap: 12px;
         align-items: center;
       }
 
       .team-button {
-        width: min(420px, 90vw);
+        width: min(380px, 82vw);
         aspect-ratio: 1 / 1;
         border-radius: 50%;
         border: none;
@@ -208,12 +227,18 @@
         text-transform: uppercase;
         transition: transform 0.08s ease, box-shadow 0.2s ease;
         background: var(--red);
-        box-shadow: 0 0 30px var(--glow-red), inset 0 0 40px rgba(255, 255, 255, 0.15);
+        box-shadow:
+          0 0 30px var(--glow-red),
+          0 0 60px rgba(255, 214, 102, 0.4),
+          inset 0 0 40px rgba(255, 255, 255, 0.15);
       }
 
       .team-button.blue {
         background: var(--blue);
-        box-shadow: 0 0 30px var(--glow-blue), inset 0 0 40px rgba(255, 255, 255, 0.15);
+        box-shadow:
+          0 0 30px var(--glow-blue),
+          0 0 60px rgba(124, 255, 192, 0.45),
+          inset 0 0 40px rgba(255, 255, 255, 0.15);
       }
 
       .team-button:active {
@@ -290,8 +315,8 @@
       .balloon {
         position: absolute;
         bottom: -80px;
-        width: 56px;
-        height: 72px;
+        width: 46px;
+        height: 60px;
         border-radius: 50% 50% 45% 45%;
         display: grid;
         place-items: center;
@@ -432,6 +457,16 @@
           height: 52px;
         }
       }
+
+      @media (max-height: 820px) {
+        .app {
+          gap: 24px;
+        }
+
+        .team-button {
+          width: min(320px, 72vw);
+        }
+      }
     </style>
   </head>
   <body>
@@ -450,7 +485,6 @@
     <div class="app">
       <header>
         <h1>Tug of War</h1>
-        <p>Real-time push. First team to ±15 wins.</p>
         <div class="shoutout">Shout out to <strong>Khadija</strong> ✨</div>
       </header>
 
@@ -542,6 +576,7 @@
       let waiting = false;
       let balloonTimer = null;
       let activeBalloon = null;
+      let khadijaTimer = null;
       let currentEffects = {
         freezeRedUntil: 0,
         freezeBlueUntil: 0,
@@ -649,9 +684,19 @@
           : "Power-ups ready";
       }
 
+      function sayHiToKhadija() {
+        if (gameOver) return;
+        statusText.textContent = "Hi Khadija! ✨";
+        setTimeout(() => {
+          if (!gameOver) {
+            statusText.textContent = team ? `${team.toUpperCase()} TEAM READY` : "Pick a side to start";
+          }
+        }, 1500);
+      }
+
       function scheduleNextBalloon() {
         if (!team || gameOver) return;
-        const delay = 3500 + Math.random() * 4500;
+        const delay = 6000 + Math.random() * 6000;
         balloonTimer = setTimeout(() => {
           trySpawnBalloon();
           scheduleNextBalloon();
@@ -670,7 +715,7 @@
             id: `${now}_${Math.random().toString(36).slice(2, 8)}`,
             type,
             x: 10 + Math.random() * 80,
-            expiresAt: now + 7000
+            expiresAt: now + 4200
           };
         });
       }
@@ -761,6 +806,12 @@
         teamButton.disabled = gameOver;
         if (balloonTimer) clearTimeout(balloonTimer);
         scheduleNextBalloon();
+        if (khadijaTimer) clearInterval(khadijaTimer);
+        khadijaTimer = setInterval(() => {
+          if (Math.random() < 0.2) {
+            sayHiToKhadija();
+          }
+        }, 12000);
       });
 
       joinBlue.addEventListener("click", () => {
@@ -770,6 +821,12 @@
         teamButton.disabled = gameOver;
         if (balloonTimer) clearTimeout(balloonTimer);
         scheduleNextBalloon();
+        if (khadijaTimer) clearInterval(khadijaTimer);
+        khadijaTimer = setInterval(() => {
+          if (Math.random() < 0.2) {
+            sayHiToKhadija();
+          }
+        }, 12000);
       });
 
       teamButton.addEventListener("click", () => {
@@ -830,12 +887,14 @@
             gameOver = true;
             setWinner("RED WINS", "var(--red)");
             if (balloonTimer) clearTimeout(balloonTimer);
+            if (khadijaTimer) clearInterval(khadijaTimer);
             return;
           }
           if (currentScore <= -maxScore) {
             gameOver = true;
             setWinner("BLUE WINS", "var(--blue)");
             if (balloonTimer) clearTimeout(balloonTimer);
+            if (khadijaTimer) clearInterval(khadijaTimer);
             return;
           }
           gameOver = false;
