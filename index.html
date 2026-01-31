@@ -275,6 +275,53 @@
         font-size: 1.8rem;
       }
 
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .field label {
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        font-size: 0.75rem;
+        color: var(--muted);
+      }
+
+      .field input {
+        background: rgba(8, 12, 20, 0.8);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 12px;
+        color: var(--text);
+        font-size: 1rem;
+        padding: 12px 14px;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        outline: none;
+      }
+
+      .field input:focus {
+        border-color: rgba(255, 255, 255, 0.4);
+        box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.08);
+      }
+
+      .hint {
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+
+      .room-code {
+        font-weight: 700;
+        letter-spacing: 0.2em;
+        color: var(--text);
+      }
+
+      .error {
+        color: #ff9090;
+        font-size: 0.85rem;
+        min-height: 1.1em;
+      }
+
       .modal-actions {
         display: flex;
         flex-direction: column;
@@ -321,6 +368,22 @@
       </div>
     </div>
 
+    <div class="modal" id="roomModal">
+      <div class="modal-card">
+        <h2>Enter Game Code</h2>
+        <div class="field">
+          <label for="roomInput">Game Code</label>
+          <input id="roomInput" maxlength="6" placeholder="AB12CD" />
+          <div class="error" id="roomError"></div>
+        </div>
+        <div class="modal-actions">
+          <button class="join-blue" id="joinRoom">Join Game</button>
+          <button class="join-red" id="createRoom">Create New Game</button>
+        </div>
+        <div class="hint">Share the code to invite others.</div>
+      </div>
+    </div>
+
     <div class="app">
       <header>
         <h1>Tug of War</h1>
@@ -345,6 +408,7 @@
       <section class="controls">
         <button class="team-button" id="teamButton">Tap to Pull</button>
         <div class="status" id="statusText">Pick a side to start</div>
+        <div class="hint">Game Code: <span class="room-code" id="roomCode">----</span></div>
         <div class="winner" id="winnerText" hidden></div>
         <button class="restart-btn" id="restartBtn" hidden>Restart</button>
       </section>
@@ -358,7 +422,10 @@
         ref,
         onValue,
         runTransaction,
-        set
+        set,
+        get,
+        onDisconnect,
+        remove
       } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
 
       const firebaseConfig = {
@@ -380,9 +447,20 @@
       }
 
       const db = getDatabase(app);
-      const scoreRef = ref(db, "score");
+      let scoreRef = null;
+      let playersRef = null;
+      let gameRef = null;
+      let unsubscribeScore = null;
+      let unsubscribePlayers = null;
+      let gameCode = null;
 
       const teamModal = document.getElementById("teamModal");
+      const roomModal = document.getElementById("roomModal");
+      const roomInput = document.getElementById("roomInput");
+      const joinRoom = document.getElementById("joinRoom");
+      const createRoom = document.getElementById("createRoom");
+      const roomError = document.getElementById("roomError");
+      const roomCodeText = document.getElementById("roomCode");
       const joinRed = document.getElementById("joinRed");
       const joinBlue = document.getElementById("joinBlue");
       const teamButton = document.getElementById("teamButton");
@@ -397,6 +475,10 @@
       let currentScore = 0;
       const cooldownMs = 500;
       let lastClickAt = 0;
+      let waiting = true;
+      const playerId = typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `player_${Math.random().toString(36).slice(2, 10)}`;
 
       function clampScore(value) {
         return Math.max(-100, Math.min(100, value));
@@ -419,8 +501,12 @@
       function clearWinner() {
         winnerText.hidden = true;
         restartBtn.hidden = true;
-        teamButton.disabled = false;
-        statusText.textContent = team ? `${team.toUpperCase()} TEAM READY` : "Pick a side to start";
+        teamButton.disabled = waiting || !team;
+        statusText.textContent = waiting
+          ? "Waiting for opponent..."
+          : team
+          ? `${team.toUpperCase()} TEAM READY`
+          : "Pick a side to start";
       }
 
       function applyTeamStyle() {
@@ -428,29 +514,150 @@
           teamButton.classList.remove("blue");
           teamButton.style.background = "var(--red)";
           teamButton.style.boxShadow = "0 0 30px var(--glow-red), inset 0 0 40px rgba(255, 255, 255, 0.15)";
-          statusText.textContent = "RED TEAM READY";
+          statusText.textContent = waiting ? "Waiting for opponent..." : "RED TEAM READY";
         } else if (team === "blue") {
           teamButton.classList.add("blue");
           teamButton.style.background = "var(--blue)";
           teamButton.style.boxShadow = "0 0 30px var(--glow-blue), inset 0 0 40px rgba(255, 255, 255, 0.15)";
-          statusText.textContent = "BLUE TEAM READY";
+          statusText.textContent = waiting ? "Waiting for opponent..." : "BLUE TEAM READY";
         }
       }
+
+      function normalizeCode(value) {
+        return value.replace(/[^a-z0-9]/gi, "").toUpperCase().slice(0, 6);
+      }
+
+      function generateCode() {
+        const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+        let output = "";
+        for (let i = 0; i < 6; i += 1) {
+          output += chars[Math.floor(Math.random() * chars.length)];
+        }
+        return output;
+      }
+
+      function setWaitingState(isWaiting) {
+        waiting = isWaiting;
+        teamButton.disabled = waiting || !team || gameOver;
+        if (gameOver) return;
+        statusText.textContent = waiting
+          ? "Waiting for opponent..."
+          : team
+          ? `${team.toUpperCase()} TEAM READY`
+          : "Pick a side to start";
+      }
+
+      function cleanupListeners() {
+        if (unsubscribeScore) unsubscribeScore();
+        if (unsubscribePlayers) unsubscribePlayers();
+      }
+
+      async function joinGame(code) {
+        cleanupListeners();
+        gameCode = code;
+        roomCodeText.textContent = gameCode;
+        gameRef = ref(db, `games/${gameCode}`);
+        scoreRef = ref(db, `games/${gameCode}/score`);
+        playersRef = ref(db, `games/${gameCode}/players`);
+
+        const playerRef = ref(db, `games/${gameCode}/players/${playerId}`);
+        await set(playerRef, { team: team ?? null, joinedAt: Date.now() });
+        onDisconnect(playerRef).remove();
+
+        unsubscribePlayers = onValue(playersRef, (snapshot) => {
+          const players = snapshot.val() || {};
+          const playerCount = Object.keys(players).length;
+          setWaitingState(playerCount < 2);
+        });
+
+        unsubscribeScore = onValue(scoreRef, (snapshot) => {
+          const value = snapshot.val();
+          if (value === null) {
+            set(scoreRef, 0);
+            return;
+          }
+          currentScore = clampScore(value);
+          scoreValue.textContent = currentScore;
+          updateIndicator(currentScore);
+
+          if (currentScore >= 100) {
+            gameOver = true;
+            setWinner("RED WINS", "var(--red)");
+            return;
+          }
+          if (currentScore <= -100) {
+            gameOver = true;
+            setWinner("BLUE WINS", "var(--blue)");
+            return;
+          }
+          gameOver = false;
+          clearWinner();
+        });
+      }
+
+      async function createGame() {
+        const code = generateCode();
+        const newGameRef = ref(db, `games/${code}`);
+        await runTransaction(newGameRef, (game) => {
+          if (game) return game;
+          return { score: 0 };
+        });
+        return code;
+      }
+
+      roomInput.addEventListener("input", (event) => {
+        const normalized = normalizeCode(event.target.value);
+        event.target.value = normalized;
+      });
+
+      joinRoom.addEventListener("click", async () => {
+        const code = normalizeCode(roomInput.value);
+        roomError.textContent = "";
+        if (!code) {
+          roomError.textContent = "Enter a valid code.";
+          return;
+        }
+        const targetRef = ref(db, `games/${code}`);
+        const snapshot = await get(targetRef);
+        if (!snapshot.exists()) {
+          roomError.textContent = "Game not found.";
+          return;
+        }
+        roomModal.style.display = "none";
+        teamModal.style.display = "flex";
+        await joinGame(code);
+      });
+
+      createRoom.addEventListener("click", async () => {
+        roomError.textContent = "";
+        const code = await createGame();
+        roomModal.style.display = "none";
+        teamModal.style.display = "flex";
+        await joinGame(code);
+      });
 
       joinRed.addEventListener("click", () => {
         team = "red";
         teamModal.style.display = "none";
         applyTeamStyle();
+        if (gameRef) {
+          const playerRef = ref(db, `games/${gameCode}/players/${playerId}`);
+          set(playerRef, { team, joinedAt: Date.now() });
+        }
       });
 
       joinBlue.addEventListener("click", () => {
         team = "blue";
         teamModal.style.display = "none";
         applyTeamStyle();
+        if (gameRef) {
+          const playerRef = ref(db, `games/${gameCode}/players/${playerId}`);
+          set(playerRef, { team, joinedAt: Date.now() });
+        }
       });
 
       teamButton.addEventListener("click", () => {
-        if (!team || gameOver) return;
+        if (!team || gameOver || waiting) return;
         teamButton.classList.remove("shake");
         void teamButton.offsetWidth;
         teamButton.classList.add("shake");
@@ -470,31 +677,7 @@
       });
 
       restartBtn.addEventListener("click", () => {
-        set(scoreRef, 0);
-      });
-
-      onValue(scoreRef, (snapshot) => {
-        const value = snapshot.val();
-        if (value === null) {
-          set(scoreRef, 0);
-          return;
-        }
-        currentScore = clampScore(value);
-        scoreValue.textContent = currentScore;
-        updateIndicator(currentScore);
-
-        if (currentScore >= 100) {
-          gameOver = true;
-          setWinner("RED WINS", "var(--red)");
-          return;
-        }
-        if (currentScore <= -100) {
-          gameOver = true;
-          setWinner("BLUE WINS", "var(--blue)");
-          return;
-        }
-        gameOver = false;
-        clearWinner();
+        if (scoreRef) set(scoreRef, 0);
       });
 
       updateIndicator(currentScore);
