@@ -232,6 +232,63 @@
         color: var(--text);
       }
 
+      .balloon-layer {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        overflow: hidden;
+        z-index: 2;
+      }
+
+      .balloon {
+        position: absolute;
+        bottom: -80px;
+        width: 56px;
+        height: 72px;
+        border-radius: 50% 50% 45% 45%;
+        display: grid;
+        place-items: center;
+        font-weight: 800;
+        color: #fff;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        cursor: pointer;
+        pointer-events: auto;
+        box-shadow: 0 0 18px rgba(0, 0, 0, 0.4);
+        animation: floatUp 6.5s linear forwards;
+      }
+
+      .balloon::after {
+        content: "";
+        position: absolute;
+        bottom: -18px;
+        width: 2px;
+        height: 18px;
+        background: rgba(255, 255, 255, 0.5);
+      }
+
+      .balloon.red {
+        background: radial-gradient(circle at 30% 30%, #ff8fa3, #ff3b5c);
+      }
+
+      .balloon.blue {
+        background: radial-gradient(circle at 30% 30%, #86b8ff, #2b7bff);
+      }
+
+      @keyframes floatUp {
+        0% {
+          transform: translateY(0) scale(1);
+          opacity: 0.9;
+        }
+        70% {
+          opacity: 1;
+        }
+        100% {
+          transform: translateY(-110vh) scale(1.1);
+          opacity: 0;
+        }
+      }
+
       .winner {
         font-size: clamp(2rem, 3vw + 1rem, 3rem);
         font-weight: 800;
@@ -337,6 +394,8 @@
       </div>
     </div>
 
+    <div class="balloon-layer" id="balloonLayer"></div>
+
     <div class="app">
       <header>
         <h1>Tug of War</h1>
@@ -415,6 +474,7 @@
       const effectsText = document.getElementById("effectsText");
       const winnerText = document.getElementById("winnerText");
       const restartBtn = document.getElementById("restartBtn");
+      const balloonLayer = document.getElementById("balloonLayer");
 
       let team = null;
       let gameOver = false;
@@ -424,11 +484,9 @@
       const freezeDurationMs = 2500;
       const boostDurationMs = 6000;
       const surgeBonus = 2;
-      const chanceFreeze = 0.12;
-      const chanceBoost = 0.12;
-      const chanceSurge = 0.08;
       let lastClickAt = 0;
       let waiting = false;
+      let balloonTimer = null;
       let currentEffects = {
         freezeRedUntil: 0,
         freezeBlueUntil: 0,
@@ -518,23 +576,58 @@
           : "Power-ups ready";
       }
 
-      function applyPowerUps(teamName, now) {
-        const opponent = teamName === "red" ? "blue" : "red";
-        let surgeActive = false;
-        const roll = Math.random();
-        if (roll < chanceFreeze) {
-          const key = opponent === "red" ? "freezeRedUntil" : "freezeBlueUntil";
-          set(ref(db, `effects/${key}`), now + freezeDurationMs);
-          statusText.textContent = `${opponent.toUpperCase()} FROZEN!`;
-        } else if (roll < chanceFreeze + chanceBoost) {
-          const key = teamName === "red" ? "boostRedUntil" : "boostBlueUntil";
-          set(ref(db, `effects/${key}`), now + boostDurationMs);
-          statusText.textContent = `${teamName.toUpperCase()} BOOSTED!`;
-        } else if (roll < chanceFreeze + chanceBoost + chanceSurge) {
-          surgeActive = true;
-          statusText.textContent = "LUCKY SURGE!";
-        }
-        return surgeActive;
+      function scheduleNextBalloon() {
+        if (!team || gameOver) return;
+        const delay = 3500 + Math.random() * 4500;
+        balloonTimer = setTimeout(() => {
+          spawnBalloon(team);
+          scheduleNextBalloon();
+        }, delay);
+      }
+
+      function spawnBalloon(teamName) {
+        const balloon = document.createElement("button");
+        const types = ["freeze", "boost", "surge"];
+        const type = types[Math.floor(Math.random() * types.length)];
+        balloon.className = `balloon ${teamName}`;
+        balloon.textContent = type === "freeze" ? "ICE" : type === "boost" ? "BOOST" : "SURGE";
+        balloon.style.left = `${10 + Math.random() * 80}%`;
+        balloonLayer.appendChild(balloon);
+
+        const cleanup = () => {
+          balloon.removeEventListener("click", onClick);
+          balloon.remove();
+        };
+
+        const onClick = () => {
+          if (!team || gameOver) return;
+          if (team !== teamName) return;
+          const now = Date.now();
+          if (type === "freeze") {
+            const opponent = teamName === "red" ? "blue" : "red";
+            const key = opponent === "red" ? "freezeRedUntil" : "freezeBlueUntil";
+            set(ref(db, `effects/${key}`), now + freezeDurationMs);
+            statusText.textContent = `${opponent.toUpperCase()} FROZEN!`;
+          } else if (type === "boost") {
+            const key = teamName === "red" ? "boostRedUntil" : "boostBlueUntil";
+            set(ref(db, `effects/${key}`), now + boostDurationMs);
+            statusText.textContent = `${teamName.toUpperCase()} BOOSTED!`;
+          } else {
+            const baseDelta = teamName === "red" ? 1 : -1;
+            runTransaction(scoreRef, (value) => {
+              const safeValue = typeof value === "number" ? value : 0;
+              if (safeValue >= maxScore || safeValue <= -maxScore) {
+                return safeValue;
+              }
+              return safeValue + baseDelta * (1 + surgeBonus);
+            });
+            statusText.textContent = "LUCKY SURGE!";
+          }
+          cleanup();
+        };
+
+        balloon.addEventListener("click", onClick);
+        balloon.addEventListener("animationend", cleanup);
       }
 
       joinRed.addEventListener("click", () => {
@@ -542,6 +635,8 @@
         teamModal.style.display = "none";
         applyTeamStyle();
         teamButton.disabled = gameOver;
+        if (balloonTimer) clearTimeout(balloonTimer);
+        scheduleNextBalloon();
       });
 
       joinBlue.addEventListener("click", () => {
@@ -549,6 +644,8 @@
         teamModal.style.display = "none";
         applyTeamStyle();
         teamButton.disabled = gameOver;
+        if (balloonTimer) clearTimeout(balloonTimer);
+        scheduleNextBalloon();
       });
 
       teamButton.addEventListener("click", () => {
@@ -566,10 +663,8 @@
         }
         lastClickAt = now;
         const boosted = isBoosted(team, now);
-        const surgeActive = applyPowerUps(team, now);
         const baseDelta = team === "red" ? 1 : -1;
-        const bonus = (boosted ? 1 : 0) + (surgeActive ? surgeBonus : 0);
-        const delta = baseDelta * (1 + bonus);
+        const delta = baseDelta * (1 + (boosted ? 1 : 0));
         runTransaction(scoreRef, (value) => {
           const safeValue = typeof value === "number" ? value : 0;
           if (safeValue >= maxScore || safeValue <= -maxScore) {
@@ -605,11 +700,13 @@
           if (currentScore >= maxScore) {
             gameOver = true;
             setWinner("RED WINS", "var(--red)");
+            if (balloonTimer) clearTimeout(balloonTimer);
             return;
           }
           if (currentScore <= -maxScore) {
             gameOver = true;
             setWinner("BLUE WINS", "var(--blue)");
+            if (balloonTimer) clearTimeout(balloonTimer);
             return;
           }
           gameOver = false;
