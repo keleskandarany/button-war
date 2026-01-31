@@ -305,6 +305,18 @@
         box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.08);
       }
 
+      .field button {
+        padding: 12px 18px;
+        border-radius: 12px;
+        font-size: 0.95rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        border: none;
+        color: #fff;
+        cursor: pointer;
+      }
+
       .hint {
         font-size: 0.85rem;
         color: var(--muted);
@@ -316,10 +328,25 @@
         color: var(--text);
       }
 
+      .host-code {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 14px;
+        border-radius: 16px;
+        background: rgba(8, 12, 20, 0.8);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        text-align: center;
+      }
+
       .error {
         color: #ff9090;
         font-size: 0.85rem;
         min-height: 1.1em;
+      }
+
+      .hidden {
+        display: none;
       }
 
       .modal-actions {
@@ -338,6 +365,17 @@
         border: none;
         color: #fff;
         cursor: pointer;
+      }
+
+      .modal-primary {
+        background: linear-gradient(135deg, #6d7bff, #7c3cff);
+        box-shadow: 0 0 20px rgba(120, 90, 255, 0.45);
+      }
+
+      .modal-secondary {
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        box-shadow: 0 0 16px rgba(0, 0, 0, 0.3);
       }
 
       .join-red {
@@ -370,17 +408,23 @@
 
     <div class="modal" id="roomModal">
       <div class="modal-card">
-        <h2>Enter Game Code</h2>
-        <div class="field">
-          <label for="roomInput">Game Code</label>
+        <h2>Create or Join Game</h2>
+        <div class="hint">Host a game to get a random code.</div>
+        <div class="modal-actions" id="roomActions">
+          <button class="modal-primary" id="hostGame">Host New Game</button>
+          <button class="modal-secondary" id="showJoin">Join With Code</button>
+        </div>
+        <div class="host-code hidden" id="hostCodeWrap">
+          <div class="hint">Share this code with friends</div>
+          <div class="room-code" id="hostCode">----</div>
+          <button class="modal-primary" id="continueToTeam">Choose Team</button>
+        </div>
+        <div class="field hidden" id="joinField">
+          <label for="roomInput">Code to Join</label>
           <input id="roomInput" maxlength="6" placeholder="AB12CD" />
           <div class="error" id="roomError"></div>
+          <button class="modal-primary" id="joinRoom">Join Game</button>
         </div>
-        <div class="modal-actions">
-          <button class="join-blue" id="joinRoom">Join Game</button>
-          <button class="join-red" id="createRoom">Create New Game</button>
-        </div>
-        <div class="hint">Share the code to invite others.</div>
       </div>
     </div>
 
@@ -458,7 +502,13 @@
       const roomModal = document.getElementById("roomModal");
       const roomInput = document.getElementById("roomInput");
       const joinRoom = document.getElementById("joinRoom");
-      const createRoom = document.getElementById("createRoom");
+      const hostGame = document.getElementById("hostGame");
+      const showJoin = document.getElementById("showJoin");
+      const roomActions = document.getElementById("roomActions");
+      const hostCodeWrap = document.getElementById("hostCodeWrap");
+      const hostCode = document.getElementById("hostCode");
+      const continueToTeam = document.getElementById("continueToTeam");
+      const joinField = document.getElementById("joinField");
       const roomError = document.getElementById("roomError");
       const roomCodeText = document.getElementById("roomCode");
       const joinRed = document.getElementById("joinRed");
@@ -596,22 +646,23 @@
       }
 
       async function createGame() {
-        for (let attempt = 0; attempt < 5; attempt += 1) {
-          const code = generateCode();
-          const newGameRef = ref(db, `games/${code}`);
-          const existing = await get(newGameRef);
-          if (existing.exists()) {
-            continue;
-          }
-          await set(newGameRef, { score: 0 });
-          return code;
-        }
-        throw new Error("Unable to allocate a unique game code.");
+        const code = generateCode();
+        const newGameRef = ref(db, `games/${code}`);
+        await runTransaction(newGameRef, (game) => {
+          if (game) return game;
+          return { score: 0 };
+        });
+        return code;
       }
 
       roomInput.addEventListener("input", (event) => {
         const normalized = normalizeCode(event.target.value);
         event.target.value = normalized;
+      });
+
+      showJoin.addEventListener("click", () => {
+        joinField.classList.remove("hidden");
+        roomInput.focus();
       });
 
       joinRoom.addEventListener("click", async () => {
@@ -632,12 +683,25 @@
         await joinGame(code);
       });
 
-      createRoom.addEventListener("click", async () => {
+      roomInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          joinRoom.click();
+        }
+      });
+
+      hostGame.addEventListener("click", async () => {
         roomError.textContent = "";
         const code = await createGame();
+        await joinGame(code);
+        hostCode.textContent = code;
+        roomActions.classList.add("hidden");
+        joinField.classList.add("hidden");
+        hostCodeWrap.classList.remove("hidden");
+      });
+
+      continueToTeam.addEventListener("click", () => {
         roomModal.style.display = "none";
         teamModal.style.display = "flex";
-        await joinGame(code);
       });
 
       joinRed.addEventListener("click", () => {
