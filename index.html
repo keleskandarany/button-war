@@ -329,7 +329,7 @@
     <div class="app">
       <header>
         <h1>Tug of War</h1>
-        <p>Real-time push. First team to ±20 wins.</p>
+        <p>Real-time push. First team to ±10 wins.</p>
       </header>
 
       <section class="progress-wrap">
@@ -405,8 +405,8 @@
       let team = null;
       let gameOver = false;
       let currentScore = 0;
-      const maxScore = 20;
-      const cooldownMs = 500;
+      const maxScore = 10;
+      const cooldownMs = 1000;
       let lastClickAt = 0;
       let waiting = false;
       const playerId = typeof crypto !== "undefined" && crypto.randomUUID
