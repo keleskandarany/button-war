@@ -389,7 +389,6 @@
 
       const db = getDatabase(app);
       const scoreRef = ref(db, "score");
-      const playersRef = ref(db, "players");
 
       const teamModal = document.getElementById("teamModal");
       const joinRed = document.getElementById("joinRed");
@@ -409,8 +408,7 @@
       const maxScore = 20;
       const cooldownMs = 500;
       let lastClickAt = 0;
-      let waiting = true;
-      let playerJoinedAt = null;
+      let waiting = false;
       const playerId = typeof crypto !== "undefined" && crypto.randomUUID
         ? crypto.randomUUID()
         : `player_${Math.random().toString(36).slice(2, 10)}`;
@@ -436,12 +434,8 @@
       function clearWinner() {
         winnerText.hidden = true;
         restartBtn.hidden = true;
-        teamButton.disabled = waiting || !team;
-        statusText.textContent = waiting
-          ? "Waiting for opponent..."
-          : team
-          ? `${team.toUpperCase()} TEAM READY`
-          : "Pick a side to start";
+        teamButton.disabled = !team;
+        statusText.textContent = team ? `${team.toUpperCase()} TEAM READY` : "Pick a side to start";
       }
 
       function applyTeamStyle() {
@@ -449,55 +443,29 @@
           teamButton.classList.remove("blue");
           teamButton.style.background = "var(--red)";
           teamButton.style.boxShadow = "0 0 30px var(--glow-red), inset 0 0 40px rgba(255, 255, 255, 0.15)";
-          statusText.textContent = waiting ? "Waiting for opponent..." : "RED TEAM READY";
+          statusText.textContent = "RED TEAM READY";
         } else if (team === "blue") {
           teamButton.classList.add("blue");
           teamButton.style.background = "var(--blue)";
           teamButton.style.boxShadow = "0 0 30px var(--glow-blue), inset 0 0 40px rgba(255, 255, 255, 0.15)";
-          statusText.textContent = waiting ? "Waiting for opponent..." : "BLUE TEAM READY";
+          statusText.textContent = "BLUE TEAM READY";
         }
-      }
-
-      function setWaitingState(isWaiting) {
-        waiting = isWaiting;
-        teamButton.disabled = waiting || !team || gameOver;
-        if (gameOver) return;
-        statusText.textContent = waiting
-          ? "Waiting for opponent..."
-          : team
-          ? `${team.toUpperCase()} TEAM READY`
-          : "Pick a side to start";
-      }
-
-      function getPlayerRef() {
-        return ref(db, `players/${playerId}`);
-      }
-
-      async function upsertPlayer(teamValue = team) {
-        const playerRef = getPlayerRef();
-        if (!playerRef) return;
-        if (!playerJoinedAt) {
-          playerJoinedAt = Date.now();
-        }
-        await set(playerRef, { team: teamValue ?? null, joinedAt: playerJoinedAt });
       }
 
       joinRed.addEventListener("click", () => {
         team = "red";
         teamModal.style.display = "none";
         applyTeamStyle();
-        upsertPlayer(team);
       });
 
       joinBlue.addEventListener("click", () => {
         team = "blue";
         teamModal.style.display = "none";
         applyTeamStyle();
-        upsertPlayer(team);
       });
 
       teamButton.addEventListener("click", () => {
-        if (!team || gameOver || waiting) return;
+        if (!team || gameOver) return;
         teamButton.classList.remove("shake");
         void teamButton.offsetWidth;
         teamButton.classList.add("shake");
@@ -521,30 +489,18 @@
       });
 
       function initGame() {
-        playerJoinedAt = Date.now();
-        upsertPlayer(team);
-        const playerRef = getPlayerRef();
-        if (playerRef) {
-          onDisconnect(playerRef).remove();
-        }
-        setTimeout(async () => {
-          const verifyRef = getPlayerRef();
-          if (!verifyRef) return;
-          const snapshot = await get(verifyRef);
-          if (!snapshot.exists()) {
-            await upsertPlayer(team);
-          }
-        }, 800);
-
-        onValue(playersRef, (snapshot) => {
-          const playerCount = snapshot.numChildren();
-          setWaitingState(playerCount < 2);
-        });
-
         onValue(scoreRef, (snapshot) => {
           const value = snapshot.val();
           if (value === null) {
             set(scoreRef, 0);
+            return;
+          }
+          if (value > maxScore) {
+            set(scoreRef, maxScore);
+            return;
+          }
+          if (value < -maxScore) {
+            set(scoreRef, -maxScore);
             return;
           }
           currentScore = clampScore(value);
