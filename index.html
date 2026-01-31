@@ -221,6 +221,17 @@
         text-transform: uppercase;
       }
 
+      .effects {
+        font-size: 0.85rem;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+      }
+
+      .effects strong {
+        color: var(--text);
+      }
+
       .winner {
         font-size: clamp(2rem, 3vw + 1rem, 3rem);
         font-weight: 800;
@@ -350,6 +361,7 @@
       <section class="controls">
         <button class="team-button" id="teamButton">Tap to Pull</button>
         <div class="status" id="statusText">Pick a side to start</div>
+        <div class="effects" id="effectsText">Power-ups ready</div>
         <div class="winner" id="winnerText" hidden></div>
         <button class="restart-btn" id="restartBtn" hidden>Restart</button>
       </section>
@@ -389,6 +401,7 @@
 
       const db = getDatabase(app);
       const scoreRef = ref(db, "score");
+      const effectsRef = ref(db, "effects");
 
       const teamModal = document.getElementById("teamModal");
       const joinRed = document.getElementById("joinRed");
@@ -399,6 +412,7 @@
       const maxScoreLabel = document.getElementById("maxScoreLabel");
       const indicator = document.getElementById("indicator");
       const statusText = document.getElementById("statusText");
+      const effectsText = document.getElementById("effectsText");
       const winnerText = document.getElementById("winnerText");
       const restartBtn = document.getElementById("restartBtn");
 
@@ -407,8 +421,20 @@
       let currentScore = 0;
       const maxScore = 10;
       const cooldownMs = 1000;
+      const freezeDurationMs = 2500;
+      const boostDurationMs = 6000;
+      const surgeBonus = 2;
+      const chanceFreeze = 0.12;
+      const chanceBoost = 0.12;
+      const chanceSurge = 0.08;
       let lastClickAt = 0;
       let waiting = false;
+      let currentEffects = {
+        freezeRedUntil: 0,
+        freezeBlueUntil: 0,
+        boostRedUntil: 0,
+        boostBlueUntil: 0
+      };
       const playerId = typeof crypto !== "undefined" && crypto.randomUUID
         ? crypto.randomUUID()
         : `player_${Math.random().toString(36).slice(2, 10)}`;
@@ -429,6 +455,7 @@
         restartBtn.hidden = false;
         teamButton.disabled = true;
         statusText.textContent = "Game over";
+        effectsText.textContent = "Power-ups locked";
       }
 
       function clearWinner() {
@@ -450,6 +477,64 @@
           teamButton.style.boxShadow = "0 0 30px var(--glow-blue), inset 0 0 40px rgba(255, 255, 255, 0.15)";
           statusText.textContent = "BLUE TEAM READY";
         }
+      }
+
+      function isFrozen(teamName, now) {
+        if (teamName === "red") {
+          return currentEffects.freezeRedUntil > now;
+        }
+        if (teamName === "blue") {
+          return currentEffects.freezeBlueUntil > now;
+        }
+        return false;
+      }
+
+      function isBoosted(teamName, now) {
+        if (teamName === "red") {
+          return currentEffects.boostRedUntil > now;
+        }
+        if (teamName === "blue") {
+          return currentEffects.boostBlueUntil > now;
+        }
+        return false;
+      }
+
+      function updateEffectsUI(now) {
+        const active = [];
+        if (currentEffects.freezeRedUntil > now) {
+          active.push("RED FROZEN");
+        }
+        if (currentEffects.freezeBlueUntil > now) {
+          active.push("BLUE FROZEN");
+        }
+        if (currentEffects.boostRedUntil > now) {
+          active.push("RED BOOST");
+        }
+        if (currentEffects.boostBlueUntil > now) {
+          active.push("BLUE BOOST");
+        }
+        effectsText.innerHTML = active.length
+          ? `Active: <strong>${active.join(" · ")}</strong>`
+          : "Power-ups ready";
+      }
+
+      function applyPowerUps(teamName, now) {
+        const opponent = teamName === "red" ? "blue" : "red";
+        let surgeActive = false;
+        const roll = Math.random();
+        if (roll < chanceFreeze) {
+          const key = opponent === "red" ? "freezeRedUntil" : "freezeBlueUntil";
+          set(ref(db, `effects/${key}`), now + freezeDurationMs);
+          statusText.textContent = `${opponent.toUpperCase()} FROZEN!`;
+        } else if (roll < chanceFreeze + chanceBoost) {
+          const key = teamName === "red" ? "boostRedUntil" : "boostBlueUntil";
+          set(ref(db, `effects/${key}`), now + boostDurationMs);
+          statusText.textContent = `${teamName.toUpperCase()} BOOSTED!`;
+        } else if (roll < chanceFreeze + chanceBoost + chanceSurge) {
+          surgeActive = true;
+          statusText.textContent = "LUCKY SURGE!";
+        }
+        return surgeActive;
       }
 
       joinRed.addEventListener("click", () => {
@@ -475,8 +560,16 @@
         if (now - lastClickAt < cooldownMs) {
           return;
         }
+        if (isFrozen(team, now)) {
+          statusText.textContent = `${team.toUpperCase()} FROZEN`;
+          return;
+        }
         lastClickAt = now;
-        const delta = team === "red" ? 1 : -1;
+        const boosted = isBoosted(team, now);
+        const surgeActive = applyPowerUps(team, now);
+        const baseDelta = team === "red" ? 1 : -1;
+        const bonus = (boosted ? 1 : 0) + (surgeActive ? surgeBonus : 0);
+        const delta = baseDelta * (1 + bonus);
         runTransaction(scoreRef, (value) => {
           const safeValue = typeof value === "number" ? value : 0;
           if (safeValue >= maxScore || safeValue <= -maxScore) {
@@ -521,6 +614,17 @@
           }
           gameOver = false;
           clearWinner();
+        });
+
+        onValue(effectsRef, (snapshot) => {
+          const value = snapshot.val() || {};
+          currentEffects = {
+            freezeRedUntil: value.freezeRedUntil || 0,
+            freezeBlueUntil: value.freezeBlueUntil || 0,
+            boostRedUntil: value.boostRedUntil || 0,
+            boostBlueUntil: value.boostBlueUntil || 0
+          };
+          updateEffectsUI(Date.now());
         });
       }
 
